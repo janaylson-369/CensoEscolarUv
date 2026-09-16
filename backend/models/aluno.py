@@ -1,9 +1,7 @@
+from Pessoa import Pessoa
 
 
 class Aluno(Pessoa):
-    def __init__(self, nome, idade, cpf, matricula):
-        super().__init__(nome, idade, cpf)
+    def __init__(self, cpf, nome, matricula):
+        super().__init__(cpf, nome)
         self.matricula = matricula
-        
-    def __str__(self):
-        return f"{super().__str__()}, Matrícula: {self.matricula}"

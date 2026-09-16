@@ -1,10 +1,11 @@
-class Pessoa:
-    def __init__(self, nome, idade, cpf):
-        self.nome = nome
-        self.idade = idade
+class Pessoa():
+    def __init__(self, cpf, nome):
         self.cpf = cpf
-        
+        self.nome = nome
+
     def __str__(self):
-        return f"Nome: {self.nome}, Idade: {self.idade}, CPF: {self.cpf}"
-    
-pessoa1 = Pessoa("joao", 30, "323.455.133-00")
+        return f"<Pessoa: {self.cpf}, {self.nome}>"
+
+
+pessoa = Pessoa("00011122233", "João da Silva")
+print(pessoa)
