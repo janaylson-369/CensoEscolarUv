@@ -52,7 +52,7 @@ def getAllInstituicoes():
     
     return [
         inst.toDict() for inst in listar() 
-        if not co_entidade or str(inst.co_entidade) == str(co_entidade)], 200
+        if not co_entidade or int(inst.co_entidade) == int(co_entidade)], 200
 
 
 @app.get("/instituicoesensino/<int:id>")
