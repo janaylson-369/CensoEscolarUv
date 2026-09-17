@@ -47,12 +47,12 @@ def health():
 # GETS
 @app.get("/instituicoesensino")
 def getAllInstituicoes():
+    
     co_entidade = request.args.get("co_entidade")
     
     return [
         inst.toDict() for inst in listar() 
-        if not co_entidade or str(inst.co_entidade) == str(co_entidade)
-    ], 200
+        if not co_entidade or str(inst.co_entidade) == str(co_entidade)], 200
 
 
 @app.get("/instituicoesensino/<int:id>")
@@ -148,6 +148,23 @@ def putUsuarios(id):
     
     salvaUsuarios(usuarios)
     return {"messagem": "atualizado man"}, 200
+
+
+@app.delete("/usuarios/<int:id>")
+def deleteUsuarios(id):
+    usuarios = listarUsuarios()
+    resto_dalista = [u for u in usuarios if int(u.id) != id]
+    
+    salvaUsuarios(resto_dalista)
+    return {"mensagem": "usuario apagado olha no arquivo"}, 200
+
+@app.get("/usuarios/<int:id>")
+def getByIdUsuarios(id):
+    usuarios = listarUsuarios()
+    a = [u.toDict() for u in usuarios if int(u.id) == id]
+    if not a:
+        return { "erro":"não encontrei bixo."}, 404
+    return a[0] , 200
 
 def main(arg=[]):
     app.run(debug=True)
