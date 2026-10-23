@@ -1,17 +1,19 @@
 import sqlite3
 from pathlib import Path
 from flask import g
+from helpers.application import app
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DB_PATH = BASE_DIR / 'censoescolar.db'
+DATABASE = BASE_DIR / 'censoescolar.db'
 
-def get_connection():
-    if 'db' not in g:
-        g.db = sqlite3.connect(DB_PATH)
-        g.db.row_factory = sqlite3.Row
-    return g.db
-
-def close_db(exception=None):
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()
+def get_connexao():
+    conn = getattr(g, '_database', None)
+    if conn is None:
+        conn = g._database = sqlite3.connect(DATABASE)  
+    return conn
+ 
+@app.teardown_appcontext
+def close_db(exception):
+    conn = getattr(g, '_database', None)
+    if conn is not None:
+        conn.close()

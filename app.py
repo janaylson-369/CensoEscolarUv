@@ -1,26 +1,42 @@
-from flask import Flask, jsonify, render_template, request
+from flask import jsonify,  request
 from models.instituicaoensino import InstituicaoEnsino, InstituicaoEnsinoSchema
 from models.usuarios import Usuarios
 from helpers.file.json import read,write
 from pathlib import Path
-import sqlite3
 from marshmallow import ValidationError
-from helpers.database import get_connection, close_db
+from helpers.database import get_connexao
+from helpers.application import app
 from http import HTTPStatus
 
 
 BASE_DIR = Path(__file__).resolve().parent
-arquivoD = BASE_DIR / "instituicoes.json"
 arquivoUsuarios = BASE_DIR / "usuarios.json"
 
 
-app = Flask(__name__)
-#  fechamento automatico da conexão
-app.teardown_appcontext(close_db)
-
-#Marshmallow
 instituicao_schema = InstituicaoEnsinoSchema()
 instituicoes_schema = InstituicaoEnsinoSchema(many=True)
+
+def row_to_instituicao(row):
+    return InstituicaoEnsino(
+        id=row[0],
+        no_entidade=row[1],
+        co_entidade=row[2],
+        no_uf=row[3],
+        sg_uf=row[4],
+        co_uf=row[5],
+        no_municipio=row[6],
+        co_municipio=row[7],
+        nu_ano_censo=row[8],
+        qt_mat_bas=row[9],
+        qt_mat_inf=row[10],
+        qt_mat_fund=row[11],
+        qt_mat_med=row[12],
+        qt_mat_prof=row[13],
+        qt_mat_eja=row[14],
+        qt_mat_esp=row[15],
+        created=row[16],
+        ativo=row[17]
+    )
 
 
 def listarUsuarios():
@@ -34,69 +50,77 @@ def salvaUsuarios(usuarios):
     
 
 
-@app.route('/')
-def index():
-    conn = get_connection()
-    posts = conn.execute('SELECT * FROM posts').fetchall()
-    return render_template('index.html', posts=posts)
-
-
 @app.route("/health")
 def health():
-    return {"health": "ok"}, 200
-
-
+    return {"health": "ok"}, HTTPStatus.OK
 
 @app.get("/instituicoesensino")
 def getAllInstituicoes():
     # Abrir a conexão com o banco de dados.
-    connection = get_connection()
-    cursor = connection.cursor()
+    connexao = get_connexao()
+    cursor = connexao.cursor()
     # Executar as DML de consulta
-    cursor.execute(f'SELECT * FROM tb_instituicao_ensino WHERE ativo = 1')
-    dataset = cursor.fetchall()
+    cursor.execute("""
+        SELECT id, no_entidade, co_entidade, no_uf, sg_uf, co_uf, 
+               no_municipio, co_municipio, nu_ano_censo, qt_mat_bas, 
+               qt_mat_inf, qt_mat_fund, qt_mat_med, qt_mat_prof, 
+               qt_mat_eja, qt_mat_esp, created, ativo
+        FROM tb_instituicao_ensino
+        WHERE ativo = 1""")
+    rows = cursor.fetchall()
+    instituicoes = [row_to_instituicao(row) for row in rows]
     
-    instituicoes = instituicoes_schema.dump([dict(row) for row in dataset])
-    
-    return jsonify(instituicoes), HTTPStatus.OK
-
-
+    return jsonify(instituicoes_schema.dump(instituicoes)), HTTPStatus.OK
 
 @app.get("/instituicoesensino/<int:id>")
 def getByIdInstituicoes(id):
-    conn = get_connection()
+    conn = get_connexao()
     cursor = conn.cursor()
-    cursor.execute('SELECT * FROM tb_instituicao_ensino WHERE id = ? AND ativo = 1', (id,))
+    cursor.execute("""
+                SELECT id, no_entidade, co_entidade, no_uf, sg_uf, co_uf, 
+                no_municipio, co_municipio, nu_ano_censo, qt_mat_bas, 
+                qt_mat_inf, qt_mat_fund, qt_mat_med, qt_mat_prof, 
+                qt_mat_eja, qt_mat_esp, created, ativo
+                FROM tb_instituicao_ensino WHERE id = ? AND ativo = 1""", (id,))
     row = cursor.fetchone()
 
     if row is None:
-        return {'mensagem': 'Instituição de ensino não encontrada'}, HTTPStatus.NOT_FOUND
+        return {"mensagem": "instituição de ensino não encontrada"}, HTTPStatus.NOT_FOUND
 
-    resultado = instituicao_schema.dump(dict(row))
-    
-    return jsonify(resultado), HTTPStatus.OK
-
+    instituicao = row_to_instituicao(row)
+    return jsonify(instituicao_schema.dump(instituicao)), HTTPStatus.OK
 
 @app.post("/instituicoesensino")
 def postInstituicoes():
     try: 
         data = instituicao_schema.load(request.get_json(), partial=False)
-        connection = get_connection()
-        with connection:
-            cursor = connection.cursor()
-            cursor.execute('INSERT INTO tb_instituicao_ensino (no_entidade, co_entidade, no_uf, sg_uf, co_uf, no_municipio, co_municipio, nu_ano_censo, qt_mat_bas, qt_mat_inf, qt_mat_fund, qt_mat_med, qt_mat_prof, qt_mat_eja, qt_mat_esp) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id, created',
-                        (data.get("no_entidade"), data.get("co_entidade"), data.get("no_uf"),
-                        data.get("sg_uf"), data.get("co_uf"), data.get("no_municipio"),
-                        data.get("co_municipio"), data.get("nu_ano_censo"), data.get("qt_mat_bas"),
-                        data.get("qt_mat_inf"), data.get("qt_mat_fund"), data.get("qt_mat_med"),
-                        data.get("qt_mat_prof"), data.get("qt_mat_eja"), data.get("qt_mat_esp")))
-
+        connexao = get_connexao()
+        with connexao:
+            cursor = connexao.cursor()
+            cursor.execute(
+                """
+                INSERT INTO tb_instituicao_ensino (
+                    no_entidade, co_entidade, no_uf, sg_uf, co_uf, 
+                    no_municipio, co_municipio, nu_ano_censo, qt_mat_bas, 
+                    qt_mat_inf, qt_mat_fund, qt_mat_med, qt_mat_prof, 
+                    qt_mat_eja, qt_mat_esp
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+                RETURNING id, created
+                """,(data["no_entidade"], data["co_entidade"], data["no_uf"],
+                     data["sg_uf"], data["co_uf"], data["no_municipio"],
+                     data["co_municipio"], data["nu_ano_censo"], data["qt_mat_bas"],
+                     data["qt_mat_inf"], data["qt_mat_fund"], data["qt_mat_med"],
+                     data["qt_mat_prof"], data["qt_mat_eja"], data["qt_mat_esp"])
+            )
             resultset = cursor.fetchone()
-            
-    except ValidationError as err:
-        return { "erro": "Dados inválidos", "campos": err.messages}, 400
+            id_novo = resultset[0]
+            created_novo = resultset[1]
 
-    return jsonify({"id": resultset["id"],"created": resultset["created"],**data}), HTTPStatus.CREATED
+        instituicao = InstituicaoEnsino(**data, id=id_novo, created=created_novo)
+        
+        return jsonify(instituicao_schema.dump(instituicao)), HTTPStatus.CREATED
+    except ValidationError as err:
+            return {"erro": "dado invalido", "campos": err.messages}, HTTPStatus.BAD_REQUEST
 
 
 
@@ -109,40 +133,50 @@ def putInstituicoes(id):
     try:
         dados_validados = instituicao_schema.load(dados, partial=True)
     except ValidationError as err:
-        return {"erro": "Dados inválidos", "campos": err.messages}, HTTPStatus.BAD_REQUEST
-    
-    connexao = get_connection()
+        return {"erro": "dados invalidos", "campos": err.messages}, HTTPStatus.BAD_REQUEST
+
+    connexao = get_connexao()
     cursor = connexao.cursor()
-    cursor.execute('SELECT * FROM tb_instituicao_ensino WHERE id = ? AND ativo = 1', (id,))
+    cursor.execute("""
+        SELECT id, no_entidade, co_entidade, no_uf, sg_uf, co_uf, 
+               no_municipio, co_municipio, nu_ano_censo, qt_mat_bas, 
+               qt_mat_inf, qt_mat_fund, qt_mat_med, qt_mat_prof, 
+               qt_mat_eja, qt_mat_esp, created, ativo
+        FROM tb_instituicao_ensino
+        WHERE id = ? AND ativo = 1 """, (id,))
     row = cursor.fetchone()
-    
+
     if row is None:
-        return {"erro": "não encontrei bixo."}, HTTPStatus.NOT_FOUND
-    
-    no_entidade = dados_validados.get("no_entidade", row["no_entidade"])
-    co_entidade = dados_validados.get("co_entidade", row["co_entidade"])
-    qt_mat_bas = dados_validados.get("qt_mat_bas", row["qt_mat_bas"])
+        return {"erro": "não encontrei nada bixo"}, HTTPStatus.NOT_FOUND
+
+    instituicao = row_to_instituicao(row)
+
+    instituicao.no_entidade = dados_validados.get("no_entidade", instituicao.no_entidade)
+    instituicao.co_entidade = dados_validados.get("co_entidade", instituicao.co_entidade)
+    instituicao.qt_mat_bas = dados_validados.get("qt_mat_bas", instituicao.qt_mat_bas)
 
     with connexao:
-        cursor.execute('UPDATE tb_instituicao_ensino SET no_entidade = ?, co_entidade = ?, qt_mat_bas = ? WHERE id = ? AND ativo = 1 RETURNING *',
-            (no_entidade, co_entidade, qt_mat_bas, id))
-        atualizado = cursor.fetchone()
+        cursor.execute(
+            """
+            UPDATE tb_instituicao_ensino
+            SET no_entidade = ?, co_entidade = ?, qt_mat_bas = ?
+            WHERE id = ? AND ativo = 1
+            """,(instituicao.no_entidade, instituicao.co_entidade, instituicao.qt_mat_bas, id)
+        )
 
-    return jsonify(instituicao_schema.dump(dict(atualizado))), HTTPStatus.OK
+    return jsonify(instituicao_schema.dump(instituicao)), HTTPStatus.OK
 
 
 @app.delete("/instituicoesensino/<int:id>")
 def deleteInstituicoes(id):
     
-    connexao = get_connection()
+    connexao = get_connexao()
     with connexao:
         cursor = connexao.cursor()
-        cursor.execute('UPDATE tb_instituicao_ensino SET ativo = 0 WHERE id = ? AND ativo = 1', (id,))
+        cursor.execute("UPDATE tb_instituicao_ensino SET ativo = 0 WHERE id = ? AND ativo = 1", (id,))
+        apagado = cursor.rowcount
 
-    apagado = cursor.rowcount
-
-    return jsonify({"mensagem": f"Coluna ativo: {apagado} esse registro com ID: {id} foi apagado"}), HTTPStatus.OK
-
+    return jsonify({"mensagem": f"coluna ativo: {apagado} o registro com ID: {id} foi apagado"}), HTTPStatus.OK
 
 
 
